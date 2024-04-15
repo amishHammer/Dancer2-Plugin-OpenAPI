@@ -89,6 +89,8 @@ sub add_to_doc {
     if( $self->has_responses ) {
         $m->{responses} = clone $self->responses;
 
+=begin1
+        This code is broken and does not generate OpenAPI 3.1 compatible output
         for my $r ( values %{$m->{responses}} ) {
             delete $r->{template};
 
@@ -100,6 +102,7 @@ sub add_to_doc {
                 $r->{examples}{$serializer->content_type} = $example;
             }
         }
+=cut
     }
 
 
