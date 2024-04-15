@@ -41,6 +41,8 @@ has responses => ( predicate => 1);
 
 has description => ( predicate => 1 );
 
+has requestBody => ( predicate => 1 );
+
 has parameters => 
     lazy => 1,
     default => sub { [] },
@@ -82,6 +84,7 @@ sub add_to_doc {
     $m->{description} = $self->description if $self->has_description;
     $m->{parameters} = $self->parameters if $self->has_parameters;
     $m->{tags} = $self->tags if $self->has_tags;
+    $m->{requestBody} = $self->requestBody if $self->has_requestBody;
 
     if( $self->has_responses ) {
         $m->{responses} = clone $self->responses;
