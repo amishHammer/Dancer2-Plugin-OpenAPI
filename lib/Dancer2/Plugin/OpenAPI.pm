@@ -1,10 +1,8 @@
-# TODO: add responses
-# TODO: add examples
 # TODO: then add the template for different responses values
 # TODO: override send_error ? 
 # TODO: add 'validate_schema'
 # TODO: add 'strict_schema'
-# TODO: make /swagger.json configurable
+# TODO: make /openapi.json configurable
 
 package Dancer2::Plugin::OpenAPI;
 # ABSTRACT: create OpenAPI documentation of your application
@@ -30,8 +28,9 @@ has doc => (
         my $self = shift;
 
         my $doc = {
-            openapi => '3.1.0',
-            paths => {},
+            openapi    => '3.1.0',
+            paths      => {},
+            components => {},
         };
 
         $doc->{info}{$_} = '' for qw/ title description version /; 
@@ -193,6 +192,14 @@ sub openapi_auto_discover :PluginKeyword {
     }
 };
 
+sub openapi_tag :PluginKeyword {
+    my ($plugin) = shift;
+
+    my( $name, $tag ) = @_;
+    push @{ $plugin->doc->{tags} }, $tag;
+    return $tag->{name};
+};
+
 sub openapi_path :PluginKeyword {
     my $plugin = shift;
 
@@ -291,12 +298,53 @@ sub openapi_definition :PluginKeyword {
 
     my( $name, $def ) = @_;
 
-    $plugin->doc->{definitions} ||= {};
+    $plugin->doc->{components}{schemas} ||= {};
+    $plugin->doc->{components}{schemas}{$name} = $def;
 
-    $plugin->doc->{definitions}{$name} = $def;
+    return { '$ref', => '#/components/schemas/'.$name };
 
-    return { '$ref', => '#/definitions/'.$name };
+}
 
+sub openapi_security :PluginKeyword {
+    my $plugin = shift;
+
+    my( $name, $def ) = @_;
+    my $global = delete $def->{global};
+
+    $plugin->doc->{components}{securitySchemes} ||= {};
+    $plugin->doc->{components}{securitySchemes}{$name} = $def;
+
+    if (defined($global) && $global) {
+        $plugin->doc->{security} ||= [];
+
+        push @{$plugin->doc->{security}}, { $name => [] };
+    }
+
+    return $name;
+}
+
+sub openapi_example :PluginKeyword {
+    my $plugin = shift;
+
+    my( $name, $def ) = @_;
+
+    $plugin->doc->{components}{examples} ||= {};
+    $plugin->doc->{components}{examples}{$name} = $def;
+
+
+    return { '$ref', => '#/components/examples/'.$name };
+}
+
+sub openapi_response_ref :PluginKeyword {
+    my $plugin = shift;
+
+    my( $name, $def ) = @_;
+
+    $plugin->doc->{components}{response} ||= {};
+    $plugin->doc->{components}{response}{$name} = $def;
+
+
+    return { '$ref', => '#/components/response/'.$name };
 }
 
 1;
@@ -474,15 +522,9 @@ is equivalent to
     },
     get '/judge/:judge_name' => { ... };
 
-If the parameters are passed as a hashref, the keys are the names of the parameters, and they will
-appear in the OpenAPI document following their alphabetical order.
-
-If the parameters are passed as an arrayref, they will appear in the document in the order
-in which they are passed. Additionally, each parameter can be given as a hashref, or can be a 
-C<< name => arguments >> pair. 
-
-In both format, for the key/value pairs, a string value is considered to be the 
-C<description> of the parameter.
+Parameters are passed as an arrayref, they will appear in the document in a random order
+as JSON arrays are unordered, it is up to the display layer to order them. Each item in
+the array can be parameter object, or a ref object.
 
 Finally, if not specified explicitly, the C<in> argument of a parameter defaults to C<query>,
 and its type to C<string>.
@@ -518,35 +560,46 @@ Possible responses from the path. Must be a hashref.
 
     openapi_path {
         responses => {
-            default => { description => 'The judge information' }
-        },
-    },
-    get '/judge/:judge_name' => { ... };
-
-If the key C<example> is given (instead of C<examples> as defined by the OpenAPI specs), 
-
-and the serializer used by the application is L<Dancer2::Serializer::JSON> or L<Dancer2::Serializer::YAML>,
-the example will be expanded to have the right content-type key.
-
-    openapi_path {
-        responses => {
-            default => { example => { fullname => 'Mary Ann Murphy' } }
-        },
-    },
-    get '/judge/:judge_name' => { ... };
-
-    # equivalent to
-
-    openapi_path {
-        responses => {
-            default => { examples => { 'application/json' => { fullname => 'Mary Ann Murphy' } } }
-        },
+            200 => {
+                content => {
+                    'application/json' => {
+                        examples => {
+                            'Example Name' => {
+                                summary => 'Example Name',
+                                value => { fullname => 'Mary Ann Murphy' }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     },
     get '/judge/:judge_name' => { ... };
 
 The special key C<template> will not appear in the OpenAPI doc, but will be
 used by the C<openapi_template> plugin keyword.
 
+=item requestBody
+
+The request body of the path item. Must be a hashref. Must be a valid request
+body object, or a ref object.
+
+     openapi_path {
+        requestBody => {
+            content => {
+                'application/json' => {
+                    type => 'object',
+                    properties => {
+                        fullname => {
+                            type => 'string'
+                            description => "The judge's full name",
+                        },
+                    }
+                }
+            }
+        }
+    },
+    post '/judge' => { ... };
 
 =back
 
@@ -608,7 +661,7 @@ routes dynamically.
 
 Adds a schema (or more) to the definition section of the OpenAPI document.
 
-    openapi_definition 'Judge' => {
+    my $Judge = openapi_definition 'Judge' => {
         type => 'object',
         required => [ 'fullname' ],
         properties => {
@@ -621,17 +674,140 @@ The function returns the reference to the definition that can be then used where
 schemas are used.
 
     my $Judge = openapi_definition 'Judge' => { ... };
-    # $Judge is now the hashref '{ '$ref' => '#/definitions/Judge' }'
+    # $Judge is now the hashref '{ '$ref' => '#/components/schema/Judge' }'
     
     # later on...
     openapi_path {
         responses => {
-            default => { schema => $Judge },
+            content => {
+                200 => {
+                    'application/json' => { schema => $Judge },
+                }
+            }
         },
     },
     get '/judge/:name' => sub { ... };
-    
 
+Reference objects can override the description of the parent type, to this
+dereference the ref object into a new hashref with the new description.
+
+    my $Timestamp = openapi_definition 'Timestamp' => {
+        type => 'string',
+        description => 'A timestamp in ISO 8601 format',
+    };
+    my $Judge = openapi_definition 'Judge' => {
+        type => 'object',
+        required => [ 'fullname' ],
+        properties => {
+            fullname => { type => 'string' },
+            seasons => { type => 'array', items => { type => 'integer' } },
+            created => {
+                description => 'When the judge was created',
+                %$Timestamp,
+            },
+        }
+    };
+
+=head2 openapi_tag $description, \%args, $route
+
+Add a tag object to the API tags section, this will be used in some
+viewers to provide a better description of tags..
+
+    my $JudgeTag = openapi_tag 'Judge' => {
+        name => 'Judge',
+        description => 'Operations about judges'
+    };
+
+=head2 openapi_example $description, \%args, $route
+
+Add an example object to the examples section to be re-used in multiple
+objects. The return is a ref object.
+
+    my $JudgeExample = openapi_example 'JudgeExample' => {
+        summary => 'Example Judge',
+        value => { fullname => 'Mary Ann Murphy' }
+    };
+    openapi_path {
+        responses => {
+            content => {
+                200 => {
+                    'application/json' => {
+                        schema => $Judge
+                        examples => { 'ExampleJudge' => $JudgeExample }
+                    },
+                }
+            }
+        },
+    },
+    get '/judge/:name' => sub { ... };
+
+
+=head2 openapi_response_ref $description, \%args, $route
+
+Add a response object to the responses section to be re-used in multiple
+paths.
+
+    my $ErrorSchema = openapi_definition 'Error' => {
+        type => 'object',
+        properties => {
+            error => { type => 'string' },
+        }
+    };
+
+    my $NotFound = openapi_response_ref 'NotFound' => {
+        description => 'The judge was not found',
+        content => {
+            'application/json' => {
+                schema => $ErrorSchema,
+                example => { error => 'Not found' }
+            }
+        }
+    };
+    openapi_path {
+        responses => {
+            404 => $NotFound
+        },
+    },
+    get '/judge/:name' => sub { ... };
+
+    openapi_path {
+        responses => {
+            404 => $NotFound
+        },
+    },
+    get '/assistant/:name' => sub { ... };
+
+
+=head2 openapi_security $description, \%args, $route
+
+Add a security object to the securitySchemes section, this returns the security
+schema name so it can be re-used. If the global key is set to true, it will be
+added to the global security array to be applied to all paths.
+
+Enable an API key security scheme for all requests in the query string.
+
+    my $ApiKey = openapi_security 'ApiKey' => {
+        type        => "apiKey",
+        name        => "apikey",
+        in          => "query",
+        description => "Your API Key",
+        global      =>1,
+    };
+
+Enable an API key for one path:
+
+    my $ApiKey = openapi_security 'ApiKey' => {
+        type        => "apiKey",
+        name        => "apikey",
+        in          => "query",
+        description => "Your API Key",
+    };
+    openapi_path {
+        security => [
+            $ApiKey => []
+        ],
+    },
+    get '/judge/:name' => sub { ... };
 
 =head1 EXAMPLES
 
