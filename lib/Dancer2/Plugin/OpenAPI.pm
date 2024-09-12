@@ -245,7 +245,7 @@ sub openapi_path :PluginKeyword {
         $p = \@p;
 
         # set defaults
-        $p = [ map { +{ in => 'query', type => 'string', %$_ } } @$p ];
+        $p = [ map { +{ in => 'query', %$_ } } @$p ];
         
         $arg->{parameters} = $p;
     }
