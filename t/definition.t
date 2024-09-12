@@ -37,7 +37,7 @@ my $Judge = openapi_definition 'Judge' => {
     }
 };
 
-cmp_deeply $Judge => { '$ref' => '#/definitions/Judge' }, 
+cmp_deeply $Judge => { '$ref' => '#/components/schemas/Judge' },
     "openapi_definition returns shortcut";
 
 openapi_path_test '/definitions' => {
