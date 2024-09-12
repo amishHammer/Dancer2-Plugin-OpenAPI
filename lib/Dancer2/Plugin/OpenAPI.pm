@@ -246,7 +246,11 @@ sub openapi_path :PluginKeyword {
 
         # set defaults
         $p = [ map { +{ in => 'query', %$_ } } @$p ];
-        
+        foreach my $o ( @$p ) {
+            if (! ($o->{type} or $o->{schema})) {
+                $o->{schema} = { type => 'string' };
+            }
+        }
         $arg->{parameters} = $p;
     }
 

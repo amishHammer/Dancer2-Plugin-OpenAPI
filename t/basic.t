@@ -54,13 +54,13 @@ $::mech->get_ok( '/openapi_template' );
 
 openapi_path_test '/parameters/standard' => {
     parameters => [
-        { name => 'foo', in => 'query', type => 'string' },
-        { name => 'bar', in => 'query', type => 'string' },
+        { name => 'foo', in => 'query', schema => { type => 'string' } },
+        { name => 'bar', in => 'query', schema => { type => 'string'} },
     ],
 }, sub {
     cmp_deeply $Dancer2::Plugin::OpenAPI::THIS_ACTION->parameters, [
-        { name => 'foo', in => 'query', type => 'string' },
-        { name => 'bar', in => 'query', type => 'string' },
+        { name => 'foo', in => 'query', schema => { type => 'string' } },
+        { name => 'bar', in => 'query', schema => { type => 'string' } },
     ];
 };
 
@@ -84,7 +84,7 @@ openapi_path_test '/parameters/defaults', {
 }, sub {
     cmp_deeply $Dancer2::Plugin::OpenAPI::THIS_ACTION->parameters, [
         { name => 'bar', in => 'query', type => 'string' },
-        { name => 'foo', in => 'query', type => 'string', description => 'FOO' },
+        { name => 'foo', in => 'query', schema => { type => 'string' }, description => 'FOO' },
     ];
 };
 
@@ -96,9 +96,9 @@ openapi_path_test '/parameters/array_with_keys', {
     ],
 }, sub {
     cmp_deeply $Dancer2::Plugin::OpenAPI::THIS_ACTION->parameters, [
-        { name => 'foo', in => 'query', type => 'string', description => 'FOO' },
+        { name => 'foo', in => 'query', schema => { type => 'string' }, description => 'FOO' },
         { name => 'bar', in => 'query', type => 'string' },
-        { name => 'baz', in => 'query', type => 'string' },
+        { name => 'baz', in => 'query', schema => { type => 'string'} },
     ];
 };
 
