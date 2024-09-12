@@ -40,6 +40,7 @@ has path => sub {
 has responses => ( predicate => 1);
 
 has description => ( predicate => 1 );
+has operationId => ( predicate => 1 );
 
 has requestBody => ( predicate => 1 );
 
@@ -66,7 +67,7 @@ sub parameter {
 
 sub dancer_pattern_to_swagger_path {
     my $pattern = shift;
-    $pattern =~ s#(?<=/):(\w+)(?=/|$)#{$1}#g;
+    $pattern =~ s#(?<=/):(\w+)\??(?=/|$)#{$1}#g;
     return $pattern;
 }
 
@@ -85,6 +86,7 @@ sub add_to_doc {
     $m->{parameters} = $self->parameters if $self->has_parameters;
     $m->{tags} = $self->tags if $self->has_tags;
     $m->{requestBody} = $self->requestBody if $self->has_requestBody;
+    $m->{operationId} = $self->operationId if $self->has_operationId;
 
     if( $self->has_responses ) {
         $m->{responses} = clone $self->responses;
@@ -139,7 +141,7 @@ sub BUILD {
         $self->parameter( $param => {
             in       => 'path',
             required => JSON::true,
-            type     => "string",
+            schema => { type => 'string' }
         } );
     }
 }
