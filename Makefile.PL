@@ -22,7 +22,7 @@ WriteMakefile
             },
         },
     },
- 
+    PREREQ_PM => {} 
 );
 
 
